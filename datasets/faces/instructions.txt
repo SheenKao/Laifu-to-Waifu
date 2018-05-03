@@ -1,0 +1,1 @@
+Insert anime faces to trainA and human faces to trainB here. File names don't matter.
