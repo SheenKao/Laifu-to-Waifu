@@ -5,6 +5,7 @@ from __future__ import division
 import math
 import pprint
 import scipy.misc
+import imageio
 import numpy as np
 import copy
 
@@ -84,10 +85,11 @@ def save_images(images, size, image_path):
     return imsave(inverse_transform(images), size, image_path)
 
 def imread(path, is_grayscale = False):
-    if (is_grayscale):
-        return scipy.misc.imread(path, flatten = True).astype(np.float)
-    else:
-        return scipy.misc.imread(path, mode='RGB').astype(np.float)
+    return imageio.imread(path).astype(np.float)
+    # if (is_grayscale):
+        # return scipy.misc.imread(path, flatten = True).astype(np.float)
+    # else:
+        # return scipy.misc.imread(path, mode='RGB').astype(np.float)
 
 def merge_images(images, size):
     return inverse_transform(images)
@@ -103,7 +105,7 @@ def merge(images, size):
     return img
 
 def imsave(images, size, path):
-    return scipy.misc.imsave(path, merge(images, size))
+    return imageio.imsave(path, merge(images, size))
 
 def center_crop(x, crop_h, crop_w,
                 resize_h=64, resize_w=64):

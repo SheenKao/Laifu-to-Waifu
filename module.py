@@ -23,7 +23,8 @@ def discriminator(image, options, reuse=False, name="discriminator"):
         # h3 is (32 x 32 x self.df_dim*8)
         h4 = conv2d(h3, 1, s=1, name='d_h3_pred')
         # h4 is (32 x 32 x 1)
-        return h4
+        # exposing h2 for feature matching to prevent mode collapse
+        return h4, h2
 
 # discriminator using an autoencoder
 def discriminator_deep(image, options, reuse=False, name="discriminator"):

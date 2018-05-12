@@ -41,7 +41,7 @@ args.L1_lambda = 1.0
 
 args.continue_train=True
 args.dataset_dir='faces'
-args.epoch = 10
+args.epoch = 7
 args.print_freq=200
 args.save_freq=500
 # args.lr=.0001
@@ -53,9 +53,11 @@ args.use_resnet=True
 args.d_train_multiplier = 1
 args.generator = 'c92'
 args.vgg = 0 #scale of VGG loss; 0 = no vgg; not implemented yet
-args.bn = True #use batch norm;
+args.bn = False #use batch norm;
+args.fm = 0.1 #scale of feature matching loss; 0 == don't use FM loss
 
-args.model_name = "{}_gen {}_disc {}_ndf {}_VGG {}_BN".format(args.generator,args.discriminator, args.ndf, args.vgg, "1" if args.bn else "0")
+
+args.model_name = "{}_gen {}_disc {}_ndf {}_VGG {}_BN {}_fm".format(args.generator,args.discriminator, args.ndf, args.vgg, "1" if args.bn else "0", args.fm)
 
 
 # print(1.9*2488/60/60*4)

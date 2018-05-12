@@ -22,6 +22,7 @@ class cyclegan(object):
         self.d_train_multiplier = args.d_train_multiplier
         self.model_dir = args.model_dir
         self.log_dir = args.log_dir
+        self.fm = args.fm
         self.g_norm= 'batch_norm' if args.bn else 'instance_norm'
         if args.discriminator == 'default':
             self.discriminator = discriminator
@@ -67,11 +68,26 @@ class cyclegan(object):
         self.fake_A = self.generator(self.real_B, self.options, True, name="generatorB2A", norm=self.g_norm)
         self.fake_B_ = self.generator(self.fake_A, self.options, True, name="generatorA2B", norm=self.g_norm)
 
-        self.DB_fake = self.discriminator(self.fake_B, self.options, reuse=False, name="discriminatorB")
-        self.DA_fake = self.discriminator(self.fake_A, self.options, reuse=False, name="discriminatorA")
-        self.g_loss_a2b = self.criterionGAN(self.DB_fake, tf.ones_like(self.DB_fake))
-        self.g_loss_b2a = self.criterionGAN(self.DA_fake, tf.ones_like(self.DA_fake))
+        self.DB_fake, self.DB_fake_features = self.discriminator(self.fake_B, self.options, reuse=False, name="discriminatorB")
+        self.DA_fake, self.DA_fake_features = self.discriminator(self.fake_A, self.options, reuse=False, name="discriminatorA")
+        if self.fm>0: #to prevent mode collapse
+            eps = 1e-6
+            _, a2b_variance = tf.nn.moments(self.DB_fake_features,[0])
+            _, b2a_variance = tf.nn.moments(self.DA_fake_features,[0])
+            a2b_variance = tf.reduce_mean(a2b_variance)
+            b2a_variance = tf.reduce_mean(b2a_variance)
+            self.g_loss_a2b = self.criterionGAN(self.DB_fake, tf.ones_like(self.DB_fake)) + self.fm/((a2b_variance)+eps)
+            self.g_loss_b2a = self.criterionGAN(self.DA_fake, tf.ones_like(self.DA_fake)) + self.fm/((b2a_variance)+eps)
+            self.da_var = tf.summary.scalar("da_var", a2b_variance)
+            self.db_var = tf.summary.scalar("db_var",b2a_variance)
+        else:
+            self.g_loss_a2b = self.criterionGAN(self.DB_fake, tf.ones_like(self.DB_fake))
+            self.g_loss_b2a = self.criterionGAN(self.DA_fake, tf.ones_like(self.DA_fake))
+            self.da_var = 0
+            self.db_var = 0
+        
         self.cycle_loss = self.L1_lambda * (abs_criterion(self.real_A, self.fake_A_) + abs_criterion(self.real_B, self.fake_B_))
+        
         self.g_loss = self.cycle_loss + self.g_loss_a2b + self.g_loss_b2a
             
 
@@ -81,10 +97,10 @@ class cyclegan(object):
         self.fake_B_sample = tf.placeholder(tf.float32,
                                             [None, self.image_size, self.image_size,
                                              self.output_c_dim], name='fake_B_sample')
-        self.DB_real = self.discriminator(self.real_B, self.options, reuse=True, name="discriminatorB")
-        self.DA_real = self.discriminator(self.real_A, self.options, reuse=True, name="discriminatorA")
-        self.DB_fake_sample = self.discriminator(self.fake_B_sample, self.options, reuse=True, name="discriminatorB")
-        self.DA_fake_sample = self.discriminator(self.fake_A_sample, self.options, reuse=True, name="discriminatorA")
+        self.DB_real, _ = self.discriminator(self.real_B, self.options, reuse=True, name="discriminatorB")
+        self.DA_real, _ = self.discriminator(self.real_A, self.options, reuse=True, name="discriminatorA")
+        self.DB_fake_sample, _ = self.discriminator(self.fake_B_sample, self.options, reuse=True, name="discriminatorB")
+        self.DA_fake_sample, _ = self.discriminator(self.fake_A_sample, self.options, reuse=True, name="discriminatorA")
 
         self.db_loss_real = self.criterionGAN(self.DB_real, tf.ones_like(self.DB_real))
         self.db_loss_fake = self.criterionGAN(self.DB_fake_sample, tf.zeros_like(self.DB_fake_sample))
@@ -106,10 +122,11 @@ class cyclegan(object):
         self.db_loss_fake_sum = tf.summary.scalar("db_loss_fake", self.db_loss_fake)
         self.da_loss_real_sum = tf.summary.scalar("da_loss_real", self.da_loss_real)
         self.da_loss_fake_sum = tf.summary.scalar("da_loss_fake", self.da_loss_fake)
+        
         self.d_sum = tf.summary.merge(
             [self.da_loss_sum, self.da_loss_real_sum, self.da_loss_fake_sum,
              self.db_loss_sum, self.db_loss_real_sum, self.db_loss_fake_sum,
-             self.d_loss_sum]
+             self.d_loss_sum,self.da_var, self.db_var]
         )
 
         self.test_A = tf.placeholder(tf.float32,
@@ -143,8 +160,10 @@ class cyclegan(object):
 
         counter = 1
         start_time = time.time()
-
+        '''for loading a pretrained model; remove in future use'''
+        # pretrain_dir = 'c92_gen default_disc 32_ndf 0_VGG 0_BN'
         if args.continue_train and self.load(args.checkpoint_dir):
+        # if args.continue_train and self.load(pretrain_dir):
             print(" [*] Load SUCCESS")
         else:
             print(" [!] Load failed...")
@@ -190,7 +209,7 @@ class cyclegan(object):
                                self.fake_B_sample: fake_B,
                                self.lr: lr})
                 
-                if (global_counter) % 10 == 0:
+                if (global_counter) % 20 == 0:
                     self.writer.add_summary(summary_str_d, global_counter)
                     self.writer.add_summary(summary_str_g, global_counter)
 
